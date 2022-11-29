@@ -196,21 +196,23 @@ last_Fat = df_eaten['Fat'].sum()
 
 
 recommended = recommend_foods(prediction_classes[y_pred], BMR-last_Calories, CARBOHYDRATE_INTAKE-last_Carbs, PROTEIN_INTAKE-last_Protein, FAT_INTAKE-last_Fat, 5)
-st.header('Top 5 Recommended Foods')
+if len(recommended) > 0:
+    st.header(f'Top {len(recommended)} Recommended Foods')
 
 
-for i in range(5):
-    img_arr = image.load_img(f"food_images/{recommended[i][0]}.jpeg", target_size=(224, 224))
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write(recommended[i][0])
-        st.image(img_arr)
-    with col2:
-        st.write(f'Recommendation percentage: {round(float(recommended[i][1]),2)}')
-        st.write(f'Calories: {round(float(recommended[i][2]), 2)}')
-        st.write(f'Carbs (grams): {round(float(recommended[i][3]), 2)}')
-        st.write(f'Protein (grams): {round(float(recommended[i][4]), 2)}')
-        st.write(f'Fat: (grams) {round(float(recommended[i][5]), 2)}')
-
+    for i in range(len(recommended)):
+        img_arr = image.load_img(f"food_images/{recommended[i][0]}.jpeg", target_size=(224, 224))
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write(recommended[i][0])
+            st.image(img_arr)
+        with col2:
+            st.write(f'Recommendation percentage: {round(float(recommended[i][1]),2)}')
+            st.write(f'Calories: {round(float(recommended[i][2]), 2)}')
+            st.write(f'Carbs (grams): {round(float(recommended[i][3]), 2)}')
+            st.write(f'Protein (grams): {round(float(recommended[i][4]), 2)}')
+            st.write(f'Fat: (grams) {round(float(recommended[i][5]), 2)}')
+elif len(recommended) == 0:
+    st.header('You have exceed your nutrient goals for today. Please eat less :)')
 
 
