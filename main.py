@@ -11,6 +11,7 @@ import pandas as pd
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 
+
 prediction_classes = {0:'chicken_noodle',
                      1: 'dumplings',
                      2: 'fried_chicken',
@@ -32,12 +33,16 @@ prediction_classes = {0:'chicken_noodle',
                      18: 'stir_fried_rice_noodles_with_chicken',
                      19: 'stir_fried_rice_noodles_with_soy_sauce_and_pork'}
 
+st.title('Food Recommendation Application a Case Study of Thai University')
+
 meal = st.radio("Breakfast or Lunch",('Breakfast', 'Lunch'))
 select_weight = st.number_input('Insert weight')
 select_height = st.number_input('Insert height')
 select_age = st.number_input('Insert age')
 select_gender = st.radio("Select gender",('Men', 'Women'))
 
+if meal == 'Lunch':
+    st.experimental_singleton.clear()
 st.header('Upload/Take an image')
 uploaded_file = st.file_uploader("Upload/Take an image", type=["jpg","jpeg"])
 if uploaded_file is None:
@@ -76,7 +81,7 @@ y_pred = np.argmax(y_pred)
 st.header(f'You are eating: {prediction_classes[y_pred]}')
 
 
-
+st.title('Food Recommendation')
 # Recommendation part
 
 df = pd.read_csv('Food dataset.csv')
@@ -138,10 +143,10 @@ FAT_INTAKE = FAT_CALORIES / FAT_CALORIES_GRAM
 
 # BMR_WOMAN = 655.1 + (9.563 * weight) + (1.85 * size) - (4.676 * age)
 
-st.write(f'MAX BMR: {BMR}')
-st.write(f'MAX CARBOHYDRATE_INTAKE: {CARBOHYDRATE_INTAKE}')
-st.write(f'MAX PROTEIN_INTAKE: {PROTEIN_INTAKE}')
-st.write(f'MAX FAT_INTAKE: {FAT_INTAKE}')
+st.write(f'MAX BMR: {round(BMR,2)}')
+st.write(f'MAX CARBOHYDRATE_INTAKE: {round(CARBOHYDRATE_INTAKE,2)}')
+st.write(f'MAX PROTEIN_INTAKE: {round(PROTEIN_INTAKE,2)}')
+st.write(f'MAX FAT_INTAKE: {round(FAT_INTAKE,2)}')
 
 def recommend_foods(food_menu: str, cal_bmr: float, carbs_intake: float, protein_intake: float, fat_intake: float, top: int = 5):
     """
@@ -171,7 +176,8 @@ df_nutrient['Fat'] = df_nutrient['Fat'].astype(np.float64)
 
 
 if meal == 'Breakfast':
-    df_eaten = pd.DataFrame(columns = ['Calories', 'Carbs', 'Protein', 'Fat'])
+    df_eaten = pd.DataFrame(columns = ['Menu', 'Calories', 'Carbs', 'Protein', 'Fat'])
+    df_eaten['Menu'] = [prediction_classes[y_pred]]
     df_eaten['Calories'] = df_nutrient[df_nutrient['Nutrient'] == prediction_classes[y_pred]]['Calories'].values
     df_eaten['Carbs'] = df_nutrient[df_nutrient['Nutrient'] == prediction_classes[y_pred]]['Carbs'].values
     df_eaten['Protein'] = df_nutrient[df_nutrient['Nutrient'] == prediction_classes[y_pred]]['Protein'].values
@@ -179,11 +185,32 @@ if meal == 'Breakfast':
     df_eaten.to_csv('eaten.csv', index = False)
 else:
     df_eaten = pd.read_csv('eaten.csv')
-    df_eaten = df_eaten.append({'Calories': df_nutrient[df_nutrient['Nutrient'] == prediction_classes[y_pred]]['Calories'].values[0], 'Carbs': df_nutrient[df_nutrient['Nutrient'] == prediction_classes[y_pred]]['Carbs'].values[0], 'Protein':df_nutrient[df_nutrient['Nutrient'] == prediction_classes[y_pred]]['Protein'].values[0],'Fat':df_nutrient[df_nutrient['Nutrient'] == prediction_classes[y_pred]]['Fat'].values[0]}, ignore_index=True)
+    df_eaten = df_eaten.append({'Menu':prediction_classes[y_pred],'Calories': df_nutrient[df_nutrient['Nutrient'] == prediction_classes[y_pred]]['Calories'].values[0], 'Carbs': df_nutrient[df_nutrient['Nutrient'] == prediction_classes[y_pred]]['Carbs'].values[0], 'Protein':df_nutrient[df_nutrient['Nutrient'] == prediction_classes[y_pred]]['Protein'].values[0],'Fat':df_nutrient[df_nutrient['Nutrient'] == prediction_classes[y_pred]]['Fat'].values[0]}, ignore_index=True)
+
+
 st.write(df_eaten)
 last_Calories = df_eaten['Calories'].sum()
 last_Carbs = df_eaten['Carbs'].sum()
 last_Protein = df_eaten['Protein'].sum()
 last_Fat = df_eaten['Fat'].sum()
 
-st.write(recommend_foods(prediction_classes[y_pred], BMR-last_Calories, CARBOHYDRATE_INTAKE-last_Carbs, PROTEIN_INTAKE-last_Protein, FAT_INTAKE-last_Fat, 5))
+
+recommended = recommend_foods(prediction_classes[y_pred], BMR-last_Calories, CARBOHYDRATE_INTAKE-last_Carbs, PROTEIN_INTAKE-last_Protein, FAT_INTAKE-last_Fat, 5)
+st.header('Top 5 Recommended Foods')
+
+
+for i in range(5):
+    img_arr = image.load_img(f"food_images/{recommended[i][0]}.jpeg", target_size=(224, 224))
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write(recommended[i][0])
+        st.image(img_arr)
+    with col2:
+        st.write(f'Recommendation percentage: {round(float(recommended[i][1]),2)}')
+        st.write(f'Calories: {round(float(recommended[i][2]), 2)}')
+        st.write(f'Carbs (grams): {round(float(recommended[i][3]), 2)}')
+        st.write(f'Protein (grams): {round(float(recommended[i][4]), 2)}')
+        st.write(f'Fat: (grams) {round(float(recommended[i][5]), 2)}')
+
+
+
