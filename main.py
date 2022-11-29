@@ -1,31 +1,15 @@
 import streamlit as st
+from tensorflow.keras.models import Model , model_from_json
+from tensorflow.keras.preprocessing import image
+from tensorflow.keras.applications.vgg19 import preprocess_input as preprocess_input_VGG19_model
+from tensorflow.keras.applications.vgg16 import preprocess_input as preprocess_input_VGG16_model
+from tensorflow.keras.applications.inception_v3 import preprocess_input as preprocess_input_inceptionV3_model
+from tensorflow.keras.applications.resnet50 import preprocess_input as preprocess_input_ResNet50_model
+from tensorflow.keras.applications.resnet_v2 import preprocess_input as preprocess_input_ResNet50V2_model
+from PIL import Image
 import pandas as pd
 import numpy as np
-from tensorflow.keras.layers import Input, Lambda, Dense, Flatten,Dropout
-from tensorflow.keras.models import Model , model_from_json
-#from tensorflow.keras.applications.vgg19 import preprocess_input
-from tensorflow.keras.preprocessing import image
-from tensorflow.keras.applications.vgg19 import VGG19
-from tensorflow.keras.applications.vgg19 import preprocess_input as preprocess_input_vgg19
-from tensorflow.keras.applications.vgg16 import VGG16
-from tensorflow.keras.applications.vgg16 import preprocess_input as preprocess_input_vgg16
-from tensorflow.keras.applications.inception_v3 import InceptionV3
-from tensorflow.keras.applications.inception_v3 import preprocess_input as preprocess_input_inception_v3
-from tensorflow.keras.applications.resnet50 import ResNet50
-from tensorflow.keras.applications.resnet50 import preprocess_input as preprocess_input_resnet50
-from tensorflow.keras.applications.resnet_v2 import ResNet50V2
-from tensorflow.keras.applications.resnet_v2 import ResNet101V2
-from tensorflow.keras.applications.resnet_v2 import ResNet152V2
-from tensorflow.keras.applications.resnet_v2 import preprocess_input as preprocess_input_resnet_v2
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.models import Sequential
-import os
-import cv2
-import matplotlib.pyplot as plt
-from tensorflow.keras import layers
-from tensorflow.keras import Model
-import imutils
-from PIL import Image
+from sklearn.metrics.pairwise import cosine_similarity
 
 prediction_classes = {0:'chicken_noodle',
                      1: 'dumplings',
@@ -48,6 +32,12 @@ prediction_classes = {0:'chicken_noodle',
                      18: 'stir_fried_rice_noodles_with_chicken',
                      19: 'stir_fried_rice_noodles_with_soy_sauce_and_pork'}
 
+meal = st.radio("Breakfast or Lunch",('Breakfast', 'Lunch'))
+select_weight = st.number_input('Insert weight')
+select_height = st.number_input('Insert height')
+select_age = st.number_input('Insert age')
+select_gender = st.radio("Select gender",('Men', 'Women'))
+
 st.header('Upload/Take an image')
 uploaded_file = st.file_uploader("Upload/Take an image", type=["jpg","jpeg"])
 if uploaded_file is None:
@@ -61,23 +51,139 @@ if uploaded_file is not None:
 st.image(img_arr)
 x = image.img_to_array(img_arr)
 x = np.expand_dims(x, axis=0)
-x = preprocess_input(x)
-
-
 
 # load json and create model
-select_model = st.radio("Select model",('ResNet152V2_model', 'VGG16_model', 'VGG19_model'))
+select_model = st.radio("Select model",('VGG16_model', 'inceptionV3_model', 'VGG19_model', 'ResNet50V2_model'))
+if select_model == 'inceptionV3_model':
+    x = preprocess_input_inceptionV3_model(x)
+elif select_model == 'VGG16_model':
+    x = preprocess_input_VGG16_model(x)
+elif select_model == 'VGG19_model':
+    x = preprocess_input_VGG19_model(x)
+elif select_model == 'ResNet50V2_model':
+    x = preprocess_input_ResNet50V2_model(x)
 
-json_file = open(f'{select_model}.json', 'r')
+json_file = open(f'models/{select_model}.json', 'r')
 loaded_model_json = json_file.read()
 json_file.close()
 loaded_model = model_from_json(loaded_model_json)
 # load weights into new model
-loaded_model.load_weights(f"{select_model}.h5")
+loaded_model.load_weights(f"models/{select_model}.h5")
 print("Loaded model from disk")
 
-
 y_pred=loaded_model.predict(x,batch_size=1)
-st.write(y_pred)
 y_pred = np.argmax(y_pred)
-st.write(prediction_classes[y_pred])
+st.header(f'You are eating: {prediction_classes[y_pred]}')
+
+
+
+# Recommendation part
+
+df = pd.read_csv('Food dataset.csv')
+df = df.iloc[5:, :].reset_index(drop = True)
+df_nutrient = df.copy()
+# Set menus as index
+df = df.rename(columns = {'Nutrient': 'index'}).set_index('index')
+
+# Specify Food menu at each index of a list as references when recommending
+FOOD_MENUS = df.index.tolist()
+CALORIES = df['Calories'].tolist()
+CARBOHYDRATES = df['Carbs'].tolist()
+PROTEINS = df['Protein'].tolist()
+FATS = df['Fat'].tolist()
+
+# Features for recommending
+features = df.columns[10:]
+# Dataframe with full set of features
+features_df = df[features]
+
+
+# Change types of all columns
+features_df = features_df.astype(np.int64)
+# Convert dataframe to numpy array for analysis
+features_np = features_df.to_numpy()
+similarity = cosine_similarity(features_np)
+
+
+weight = select_weight
+size = select_height
+age = select_age
+gender = select_gender
+
+BMR_MEN =  66.47 + (13.75 * weight) + (5.003 * size) - (6.755 * age)
+BMR_WOMAN = 655.1 + (9.563 * weight) + (1.85 * size) - (4.676 * age)
+BMR_FORMULA = {'Men': BMR_MEN, 'Women': BMR_WOMAN}
+
+
+# Requirement / Day in ratio to Calories
+CARBOHYDRATE = 0.45
+PROTEIN = 0.25
+FAT = 0.3
+BMR = BMR_FORMULA[gender]
+
+# Calories of each nutrient
+CARBOHYDRATE_CALORIES = BMR * CARBOHYDRATE
+PROTEIN_CALORIES  = BMR * PROTEIN
+FAT_CALORIES = BMR * FAT
+
+# Calories / gram
+CARBOHYDRATE_CALORIES_GRAM = 4
+PROTEIN_CALORIES_GRAM = 4
+FAT_CALORIES_GRAM = 9
+
+# Nutrient Intake (gram/day)
+CARBOHYDRATE_INTAKE = CARBOHYDRATE_CALORIES / CARBOHYDRATE_CALORIES_GRAM
+PROTEIN_INTAKE = PROTEIN_CALORIES / PROTEIN_CALORIES_GRAM
+FAT_INTAKE = FAT_CALORIES / FAT_CALORIES_GRAM
+
+# BMR_WOMAN = 655.1 + (9.563 * weight) + (1.85 * size) - (4.676 * age)
+
+st.write(f'MAX BMR: {BMR}')
+st.write(f'MAX CARBOHYDRATE_INTAKE: {CARBOHYDRATE_INTAKE}')
+st.write(f'MAX PROTEIN_INTAKE: {PROTEIN_INTAKE}')
+st.write(f'MAX FAT_INTAKE: {FAT_INTAKE}')
+
+def recommend_foods(food_menu: str, cal_bmr: float, carbs_intake: float, protein_intake: float, fat_intake: float, top: int = 5):
+    """
+    Recommend food with similarity score :) Best doc-string I could write
+    """
+    if food_menu not in FOOD_MENUS:
+      return 'Food is not in the list.'
+
+    index = np.where(features_df.index == food_menu)[0][0]
+    similar_foods = sorted(
+              enumerate(similarity[index]),
+              key=lambda x:x[1],
+              reverse=True
+              )[1:]
+
+    # print(similar_foods)
+
+    food_lists = [(FOOD_MENUS[i[0]], i[1], CALORIES[i[0]], CARBOHYDRATES[i[0]], PROTEINS[i[0]], FATS[i[0]]) for i in similar_foods]
+    filter_food_lists = [food for food in food_lists if all([float(food[2]) < cal_bmr, float(food[3]) < carbs_intake, float(food[4]) < protein_intake, float(food[5]) < fat_intake])]
+
+    return filter_food_lists[:top+1]
+
+
+df_nutrient['Carbs'] = df_nutrient['Carbs'].astype(np.float64)
+df_nutrient['Protein'] = df_nutrient['Protein'].astype(np.float64)
+df_nutrient['Fat'] = df_nutrient['Fat'].astype(np.float64)
+
+
+if meal == 'Breakfast':
+    df_eaten = pd.DataFrame(columns = ['Calories', 'Carbs', 'Protein', 'Fat'])
+    df_eaten['Calories'] = df_nutrient[df_nutrient['Nutrient'] == prediction_classes[y_pred]]['Calories'].values
+    df_eaten['Carbs'] = df_nutrient[df_nutrient['Nutrient'] == prediction_classes[y_pred]]['Carbs'].values
+    df_eaten['Protein'] = df_nutrient[df_nutrient['Nutrient'] == prediction_classes[y_pred]]['Protein'].values
+    df_eaten['Fat'] = df_nutrient[df_nutrient['Nutrient'] == prediction_classes[y_pred]]['Fat'].values
+    df_eaten.to_csv('eaten.csv', index = False)
+else:
+    df_eaten = pd.read_csv('eaten.csv')
+    df_eaten = df_eaten.append({'Calories': df_nutrient[df_nutrient['Nutrient'] == prediction_classes[y_pred]]['Calories'].values[0], 'Carbs': df_nutrient[df_nutrient['Nutrient'] == prediction_classes[y_pred]]['Carbs'].values[0], 'Protein':df_nutrient[df_nutrient['Nutrient'] == prediction_classes[y_pred]]['Protein'].values[0],'Fat':df_nutrient[df_nutrient['Nutrient'] == prediction_classes[y_pred]]['Fat'].values[0]}, ignore_index=True)
+st.write(df_eaten)
+last_Calories = df_eaten['Calories'].sum()
+last_Carbs = df_eaten['Carbs'].sum()
+last_Protein = df_eaten['Protein'].sum()
+last_Fat = df_eaten['Fat'].sum()
+
+st.write(recommend_foods(prediction_classes[y_pred], BMR-last_Calories, CARBOHYDRATE_INTAKE-last_Carbs, PROTEIN_INTAKE-last_Protein, FAT_INTAKE-last_Fat, 5))
