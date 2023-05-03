@@ -57,6 +57,23 @@ st.image(img_arr)
 x = image.img_to_array(img_arr)
 x = np.expand_dims(x, axis=0)
 
+# check food/non-food
+json_file = open(f'food_non_food_model/VGG19_model.json', 'r')
+loaded_model_json = json_file.read()
+json_file.close()
+loaded_model = model_from_json(loaded_model_json)
+# load weights into new model
+loaded_model.load_weights(f"food_non_food_model/VGG19_model.h5")
+print("Loaded model from disk")
+
+y_pred=loaded_model.predict(x,batch_size=1)
+if y_pred[0][0]!=1:
+    st.header(f'You are not eating food, please upload/take an image again')
+    st.stop()
+else:
+    pass
+
+
 # load json and create model
 select_model = st.radio("Select model",('VGG16_model', 'inceptionV3_model', 'VGG19_model', 'ResNet50V2_model'))
 if select_model == 'inceptionV3_model':
